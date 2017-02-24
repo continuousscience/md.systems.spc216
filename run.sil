@@ -1,0 +1,60 @@
+lmp = Prim(sil://md.lammps/2017-02-24T06:33:40Z)
+
+∙ = lmp.command -- function to run a lammps command
+
+/* TODO: 1. Create FILE interface for fake files.
+ *          target is in:read_data, in:spc_wat.lmp, out:tmp.rdf
+ *       2. Implement string splicing & conversion for printing.
+ */
+
+-- A program consisting of lots of lmp.command calls:
+
+gmx_like = do
+  ∙ "units real"
+  ∙ "atom_style full"
+  ∙ "neighbor 2.0 bin"
+  ∙ "neigh_modify delay 5"
+  ∙ "pair_style lj/charmm/coul/long 8.0 8.5"
+  ∙ "kspace_style ewald 1e-5"
+  ∙ "pair_modify mix arithmetic"
+  ∙ "bond_style harmonic"
+  ∙ "angle_style harmonic"
+  ∙ "special_bonds lj/coul 0 0 1"
+ 
+loadcoords = do
+  ∙ "read_data \"spc216.lmp\""
+
+andersen = fun Float temp -> do
+  ∙ "velocity all create 300.0 39856"
+  ∙ "fix mdnvt all nvt temp 300.0 300.0 10.0"
+  ∙ "fix andr all temp/rescale 200 300.0 300.0 0.02 1.0"
+  ∙ "thermo_style    custom step temp press etotal"
+  ∙ "thermo 50"
+  ∙ "timestep 0.001"
+
+shake = do
+  ∙ "molecule spc_wat \"spc_wat.lmp\""
+  ∙ "fix shaker all shake 0.0001 20 100 b 1 a 1 mol spc_wat"
+
+rdf = do
+  ∙ "compute rdf1 all rdf 500 1 1 1 2* 2* 2*"
+  ∙ "fix rdf_file all ave/time 100 1 100 c_rdf1[*] file tmp.rdf mode vector"
+
+run = fun Int steps -> do
+  ∙ "run 100" -- ++ str_of_int(steps)
+
+-- A compound program consisting of 2 subprograms.
+prog = do
+  ∙ "boundary p p p"
+  gmx_like()
+  --loadcoords()
+  --andersen(300.0)
+  --shake()
+  --run(100)
+
+-- Saves the final state of the program as immutable data.
+out = fst( runST(lmp.open(3), prog) )
+
+-- Do a simple test here.
+atoms = lmp.get_natoms( out )
+
