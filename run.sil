@@ -1,15 +1,34 @@
-lmp = Prim(sil://md.lammps/2017-02-24T06:33:40Z)
+lmp = Prim(sil://md.lammps/2017-03-07T06:00Z)
+
+-- A compound program consisting of 2 subprograms.
+prog = do ST
+  gmx_like()
+  spc216 := lmp.newDatum(spc216)
+  lmp.read_data(spc216)
+  andersen(300.0)
+  shake()
+  lmp.run(100)
+
+
+-- Saves the final state of the program as immutable data.
+out = runST(lmp.open(3), prog)[1]
+
+-- Continue last run for another 100 steps.
+-- out and out2 are now 2 different, immutable
+-- LAMMPS output states (representing 2 different times)
+prog2 = do ST
+  lmp.run(100)
+
+out2 = runST(out, prog2)[1]
+
+-- Do a simple test here.
+atoms = lmp.get_natoms( out2 )
 
 ∙ = lmp.command -- function to run a lammps command
 
-/* TODO: 1. Create FILE interface for fake files.
- *          target is in:read_data, in:spc_wat.lmp, out:tmp.rdf
- *       2. Implement string splicing & conversion for printing.
- */
-
--- A program consisting of lots of lmp.command calls:
-
-gmx_like = do
+-- Sub-programs consisting of lots of lmp.command calls:
+gmx_like = do ST
+  ∙ "boundary p p p"
   ∙ "units real"
   ∙ "atom_style full"
   ∙ "neighbor 2.0 bin"
@@ -21,10 +40,7 @@ gmx_like = do
   ∙ "angle_style harmonic"
   ∙ "special_bonds lj/coul 0 0 1"
  
-loadcoords = do
-  ∙ "read_data \"spc216.lmp\""
-
-andersen = fun Float temp -> do
+andersen = fun Float temp -> do ST
   ∙ "velocity all create 300.0 39856"
   ∙ "fix mdnvt all nvt temp 300.0 300.0 10.0"
   ∙ "fix andr all temp/rescale 200 300.0 300.0 0.02 1.0"
@@ -32,29 +48,12 @@ andersen = fun Float temp -> do
   ∙ "thermo 50"
   ∙ "timestep 0.001"
 
-shake = do
-  ∙ "molecule spc_wat \"spc_wat.lmp\""
+shake = do ST
+  spc_wat := lmp.newDatum(spc_wat)
+  lmp.molecule("spc_wat", spc_wat, "")
   ∙ "fix shaker all shake 0.0001 20 100 b 1 a 1 mol spc_wat"
 
-rdf = do
+rdf = do ST
   ∙ "compute rdf1 all rdf 500 1 1 1 2* 2* 2*"
   ∙ "fix rdf_file all ave/time 100 1 100 c_rdf1[*] file tmp.rdf mode vector"
-
-run = fun Int steps -> do
-  ∙ "run 100" -- ++ str_of_int(steps)
-
--- A compound program consisting of 2 subprograms.
-prog = do
-  ∙ "boundary p p p"
-  gmx_like()
-  --loadcoords()
-  --andersen(300.0)
-  --shake()
-  --run(100)
-
--- Saves the final state of the program as immutable data.
-out = fst( runST(lmp.open(3), prog) )
-
--- Do a simple test here.
-atoms = lmp.get_natoms( out )
 
