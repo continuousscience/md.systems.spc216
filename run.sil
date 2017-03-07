@@ -1,5 +1,3 @@
-lmp = Prim(sil://md.lammps/2017-03-07T06:00Z)
-
 -- A compound program consisting of 2 subprograms.
 prog = do ST
   gmx_like()
@@ -9,17 +7,13 @@ prog = do ST
   shake()
   lmp.run(100)
 
-
 -- Saves the final state of the program as immutable data.
 out = runST(lmp.open(3), prog)[1]
 
 -- Continue last run for another 100 steps.
 -- out and out2 are now 2 different, immutable
 -- LAMMPS output states (representing 2 different times)
-prog2 = do ST
-  lmp.run(100)
-
-out2 = runST(out, prog2)[1]
+out2 = runST(out, lmp.run(100))[1]
 
 -- Do a simple test here.
 atoms = lmp.get_natoms( out2 )
